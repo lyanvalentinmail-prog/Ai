@@ -1,0 +1,31 @@
+[TEMA: Identidad y Arquitectura Propia]
+Soy NEXUS, una inteligencia artificial propia y modular diseñada para ejecutarse de forma nativa y 100% local desde Termux en Android y sistemas Linux.
+Puedo generar y analizar texto, buscar información en archivos locales o en la web abierta, sintetizar imágenes y arte neuronal en formato PNG con vista previa en consola, crear videos animados en MP4 o GIF con pista de audio, y actuar como un agente autónomo capaz de escribir código, ejecutar comandos de terminal y controlar funciones del teléfono mediante Termux:API.
+
+[TEMA: Termux y Android]
+Termux es un emulador de terminal y entorno Linux para Android que funciona directamente sin necesidad de acceso root.
+En Termux los paquetes se instalan con el gestor pkg, por ejemplo: pkg update && pkg upgrade, pkg install python git clang cmake ffmpeg termux-api.
+Para acceder a las carpetas compartidas del teléfono Android desde Termux se ejecuta el comando termux-setup-storage, el cual crea enlaces simbólicos en ~/storage/shared hacia Descargas, Imágenes y Películas.
+El complemento Termux:API permite interactuar con el hardware de Android desde la línea de comandos: termux-battery-status consulta la batería, termux-notification muestra notificaciones nativas, termux-tts-speak convierte texto en voz hablada, termux-speech-to-text transcribe la voz del micrófono, termux-vibrate activa la vibración y termux-open abre cualquier archivo con las aplicaciones del teléfono.
+
+[TEMA: Modelos Locales y llama.cpp]
+Los modelos de lenguaje en formato GGUF permiten ejecutar inteligencia artificial generativa directamente en procesadores móviles ARM64 sin depender de servidores externos.
+llama.cpp utiliza instrucciones vectoriales ARM NEON y cuantización de 4 bits (como Q4_K_M) para reducir el uso de memoria RAM manteniendo alta precisión.
+En teléfonos con 3 o 4 GB de RAM funcionan de manera fluida modelos ligeros como SmolLM2 de 360M o 1.7B y Qwen2.5 de 1.5B parámetros. En dispositivos con 6 GB o más de RAM se pueden usar modelos de 3B parámetros o mayores.
+Para generación local de imágenes por difusión en procesadores ARM existe stable-diffusion.cpp, además de redes generativas composicionales CPPN y motores procedimentales matemáticos.
+
+[TEMA: Programación y Python]
+Python es un lenguaje de programación multiparadigma, limpio y versátil ideal para automatización, ciencia de datos, inteligencia artificial y desarrollo en Termux.
+En Python las funciones se definen con def, las clases con class, el manejo de errores utiliza bloques try y except, y las listas por comprensión permiten transformar colecciones de datos en una sola línea.
+Los algoritmos fundamentales incluyen búsqueda binaria con complejidad logarítmica O(log n), ordenamiento rápido quicksort y mergesort con complejidad O(n log n), programación dinámica y estructuras como árboles, grafos, colas y tablas hash.
+
+[TEMA: Redes Neuronales y Aprendizaje Automático]
+Una red neuronal artificial procesa información a través de capas de neuronas conectadas mediante pesos sinápticos y funciones de activación no lineales como ReLU, tanh o sigmoide.
+Durante el entrenamiento, el algoritmo de retropropagación calcula el gradiente de la función de pérdida respecto a cada peso y actualiza los parámetros mediante descenso de gradiente para minimizar el error.
+Un sistema RAG (Generación Aumentada por Recuperación) combina una base vectorial de documentos locales con un generador de texto para responder con datos verificables y actualizados sin necesidad de reentrenar millones de parámetros.
+
+[TEMA: Ciencia, Física y Matemáticas]
+La velocidad de la luz en el vacío es exactamente 299,792,458 metros por segundo.
+Un agujero negro es una región del espacio-tiempo cuya gravedad es tan intensa que ni siquiera la luz puede escapar una vez cruzado el horizonte de sucesos.
+El teorema de Pitágoras establece que en todo triángulo rectángulo el cuadrado de la hipotenusa es igual a la suma de los cuadrados de los catetos: a² + b² = c².
+El ADN contiene las instrucciones genéticas de los seres vivos codificadas mediante cuatro bases nitrogenadas: adenina, timina, citosina y guanina.

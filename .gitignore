@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ia_test_home/
+outputs/
+*.gguf
+*.gguf.part
+*.safetensors
+*.mp4
+*.avi
+*.gif
+*.wav
