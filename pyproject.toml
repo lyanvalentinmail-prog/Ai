@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexus-ia-propia"
+version = "1.0.0"
+description = "Inteligencia Artificial Propia 100% Local para Termux (Android) y Linux: Texto, Buscar, Imágenes, Video y Agente."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+media = ["Pillow>=9.0.0"]
+
+[project.scripts]
+ia = "ia_core.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["ia_core*"]
