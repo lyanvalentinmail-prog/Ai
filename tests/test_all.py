@@ -174,6 +174,72 @@ class TestNexusIAPropia(unittest.TestCase):
         self.assertEqual(p_txt.returncode, 0)
         self.assertIn("NEXUS", p_txt.stdout)
 
+    def test_07_nexus_terminal_hybrid_shell(self) -> None:
+        from ia_core.cli import NexusApplication
+        from ia_core.terminal_shell import NexusTerminalShell
+
+        app = NexusApplication(config=self.cfg)
+        shell = NexusTerminalShell(app, isolate_screen=False)
+
+        # Clasificador híbrido (Comandos OS vs IA vs Agente vs Builtins)
+        self.assertEqual(shell.classify_input("ls -la")[0], "shell")
+        self.assertEqual(shell.classify_input("git status")[0], "shell")
+        self.assertEqual(shell.classify_input("/bin/ls")[0], "shell")
+        self.assertEqual(shell.classify_input("!echo forzado")[0], "shell")
+        self.assertEqual(shell.classify_input("cd /tmp")[0], "builtin")
+        self.assertEqual(shell.classify_input("tema matrix")[0], "builtin")
+        self.assertEqual(shell.classify_input("reparar")[0], "builtin")
+        self.assertEqual(shell.classify_input("/imagen galaxia")[0], "slash")
+        self.assertEqual(shell.classify_input("?cuánto es 5+5")[0], "ai")
+        self.assertEqual(shell.classify_input("¿Qué es un agujero negro?")[0], "ai")
+        self.assertEqual(shell.classify_input("dibuja una montaña")[0], "ai")
+        self.assertEqual(shell.classify_input("@crea calc.py y pruébalo")[0], "agent")
+
+        # Built-ins: alias + export + cambio de directorio y cd -
+        orig_cwd = Path.cwd()
+        try:
+            sub_dir = Path(self.tmp_dir.name) / "sub_shell_dir"
+            sub_dir.mkdir(parents=True, exist_ok=True)
+            shell.handle_builtin(f"cd {sub_dir}")
+            self.assertEqual(Path.cwd(), sub_dir.resolve())
+            shell.handle_builtin("cd -")
+            self.assertEqual(Path.cwd(), orig_cwd.resolve())
+
+            shell.handle_builtin("alias hola_nx='echo NEXUS_OK'")
+            kind, expanded = shell.classify_input("hola_nx")
+            self.assertEqual(kind, "shell")
+            self.assertEqual(expanded, "echo NEXUS_OK")
+        finally:
+            os.chdir(orig_cwd)
+
+    def test_08_nexus_term_end_to_end_session(self) -> None:
+        env = os.environ.copy()
+        env["IA_HOME"] = str(self.home_path)
+        exe = str(REPO_ROOT / "ia")
+
+        session_script = "\n".join(
+            [
+                "tema matrix",
+                "echo PRUEBA_SHELL_NATIVO_123",
+                "¿Cuánto es 12 * 12?",
+                "comando_inexistente_xyz --flag",
+                "salir",
+            ]
+        ) + "\n"
+        proc = subprocess.run(
+            [sys.executable, exe],
+            input=session_script,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=25,
+        )
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("NEXUS-TERM", proc.stdout)
+        self.assertIn("PRUEBA_SHELL_NATIVO_123", proc.stdout)
+        self.assertIn("144", proc.stdout)
+        self.assertIn("Cerrando NEXUS-TERM", proc.stdout)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

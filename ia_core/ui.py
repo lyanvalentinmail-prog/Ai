@@ -6,27 +6,57 @@ Incluye renderizador de imágenes y fotogramas de video en terminal mediante blo
 
 from __future__ import annotations
 
+import atexit
 import os
 import re
 import shutil
 import sys
 import textwrap
 import time
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 # Detectar soporte de color
 SUPPORTS_COLOR = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+_ALT_SCREEN_ACTIVE = False
+
+
+THEMES: Dict[str, Dict[str, str]] = {
+    "cyber": {
+        "primary": "\033[38;2;0;240;255m",     # Cian neón
+        "secondary": "\033[38;2;192;132;252m", # Púrpura synth
+        "accent": "\033[38;2;250;204;21m",     # Amarillo eléctrico
+        "bar_bg": "\033[48;2;15;23;42m",       # Azul pizarra oscuro
+    },
+    "matrix": {
+        "primary": "\033[38;2;34;255;102m",    # Verde fósforo
+        "secondary": "\033[38;2;16;185;129m",  # Esmeralda
+        "accent": "\033[38;2;163;230;53m",     # Lima brillante
+        "bar_bg": "\033[48;2;6;24;12m",        # Negro verdoso
+    },
+    "ambar": {
+        "primary": "\033[38;2;251;191;36m",    # Ámbar retro CRT
+        "secondary": "\033[38;2;249;115;22m",  # Naranja cálido
+        "accent": "\033[38;2;254;240;138m",    # Dorado claro
+        "bar_bg": "\033[48;2;28;18;6m",        # Marrón oscuro CRT
+    },
+    "oceano": {
+        "primary": "\033[38;2;56;189;248m",    # Celeste océano
+        "secondary": "\033[38;2;99;102;241m",  # Índigo profundo
+        "accent": "\033[38;2;45;212;191m",     # Turquesa
+        "bar_bg": "\033[48;2;10;25;47m",       # Azul abisal
+    },
+}
 
 
 class C:
-    """Códigos ANSI elegantes de alta legibilidad en fondos oscuros de Termux."""
+    """Códigos ANSI dinámicos (soportan cambio de tema en vivo en NEXUS-TERM)."""
 
     RESET = "\033[0m" if SUPPORTS_COLOR else ""
     BOLD = "\033[1m" if SUPPORTS_COLOR else ""
     DIM = "\033[2m" if SUPPORTS_COLOR else ""
     ITALIC = "\033[3m" if SUPPORTS_COLOR else ""
 
-    CYAN = "\033[38;2;56;189;248m" if SUPPORTS_COLOR else ""
+    CYAN = "\033[38;2;0;240;255m" if SUPPORTS_COLOR else ""
     BLUE = "\033[38;2;96;165;250m" if SUPPORTS_COLOR else ""
     PURPLE = "\033[38;2;192;132;252m" if SUPPORTS_COLOR else ""
     GREEN = "\033[38;2;74;222;128m" if SUPPORTS_COLOR else ""
@@ -35,15 +65,75 @@ class C:
     RED = "\033[38;2;248;113;113m" if SUPPORTS_COLOR else ""
     GRAY = "\033[38;2;148;163;184m" if SUPPORTS_COLOR else ""
     WHITE = "\033[38;2;241;245;249m" if SUPPORTS_COLOR else ""
-    BG_CODE = "\033[48;2;30;41;59m" if SUPPORTS_COLOR else ""
+    BG_CODE = "\033[48;2;15;23;42m" if SUPPORTS_COLOR else ""
 
+
+def apply_theme(theme_name: str) -> str:
+    """Aplica uno de los temas visuales propios de NEXUS-TERM."""
+    key = theme_name.strip().lower()
+    if key not in THEMES:
+        key = "cyber"
+    if SUPPORTS_COLOR:
+        t = THEMES[key]
+        C.CYAN = t["primary"]
+        C.PURPLE = t["secondary"]
+        C.YELLOW = t["accent"]
+        C.BG_CODE = t["bar_bg"]
+    return key
+
+
+def set_terminal_title(title: str) -> None:
+    """Cambia el título de la sesión/pestaña en Termux y emuladores XTerm."""
+    if sys.stdout.isatty():
+        sys.stdout.write(f"\033]0;{title}\007")
+        sys.stdout.flush()
+
+
+def enter_alt_screen(title: str = "⚡ NEXUS-TERM · Terminal IA Propia") -> bool:
+    """
+    Activa el Alternate Screen Buffer (\\033[?1049h) para que NEXUS corra en
+    una pantalla de terminal completamente separada de la consola anterior.
+    """
+    global _ALT_SCREEN_ACTIVE
+    if not sys.stdout.isatty() or _ALT_SCREEN_ACTIVE:
+        return False
+    _ALT_SCREEN_ACTIVE = True
+    sys.stdout.write("\033[?1049h\033[2J\033[H")
+    sys.stdout.flush()
+    set_terminal_title(title)
+    return True
+
+
+def exit_alt_screen() -> None:
+    """Sale del Alternate Screen Buffer y restaura intacta la terminal original."""
+    global _ALT_SCREEN_ACTIVE
+    if _ALT_SCREEN_ACTIVE and sys.stdout.isatty():
+        _ALT_SCREEN_ACTIVE = False
+        sys.stdout.write("\033[0m\033]0;Termux\007\033[?1049l")
+        sys.stdout.flush()
+
+
+atexit.register(exit_alt_screen)
+
+
+import unicodedata
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def visible_len(text: str) -> int:
-    """Longitud real visible ignorando secuencias ANSI."""
-    return len(ANSI_RE.sub("", text))
+    """Ancho real en columnas de terminal ignorando ANSI y midiendo caracteres dobles (emoji/CJK)."""
+    clean = ANSI_RE.sub("", text)
+    cols = 0
+    for ch in clean:
+        if unicodedata.combining(ch):
+            continue
+        eaw = unicodedata.east_asian_width(ch)
+        if eaw in ("W", "F"):
+            cols += 2
+        else:
+            cols += 1
+    return cols
 
 
 def term_width(default: int = 68, max_width: int = 96) -> int:
@@ -89,6 +179,82 @@ def print_banner(
     pad4 = max(0, (w - 2) - visible_len(hint) - 2)
     print(f"{C.CYAN}│{C.RESET} {hint}{' ' * pad4} {C.CYAN}│{C.RESET}")
     print(f"{C.CYAN}╰{line}╯{C.RESET}")
+
+
+def print_nexus_term_hud(
+    ai_name: str,
+    engine_label: str,
+    memory_count: int,
+    safe_mode: bool,
+    shell_mode: str,
+    theme_name: str,
+    avail_ram_mb: int,
+    total_ram_mb: int,
+    arch: str,
+    is_termux_env: bool,
+    battery_pct: Optional[int] = None,
+) -> None:
+    """
+    Dibuja el HUD superior propio de NEXUS-TERM (estilo Terminal OS dedicada),
+    claramente diferenciado de la consola estándar de Termux.
+    """
+    w = term_width()
+    inner = w - 2
+    top_bar = "═" * inner
+    mid_bar = "─" * inner
+
+    used_mb = max(0, total_ram_mb - avail_ram_mb)
+    ram_ratio = min(1.0, used_mb / max(1, total_ram_mb))
+    ram_blocks = int(round(ram_ratio * 8))
+    ram_meter = "▰" * ram_blocks + "▱" * (8 - ram_blocks)
+    used_gb = used_mb / 1024.0
+    tot_gb = total_ram_mb / 1024.0
+
+    env_str = "TERMUX-OS" if is_termux_env else "LINUX-OS"
+    bat_str = f" · BAT {battery_pct}%" if battery_pct is not None else ""
+    clock_str = time.strftime("%H:%M")
+
+    def row_box(content: str, bg: str = "") -> str:
+        pad = max(0, inner - visible_len(content) - 2)
+        return f"{C.CYAN}║{C.RESET}{bg} {content}{' ' * pad} {C.RESET}{C.CYAN}║{C.RESET}"
+
+    print(f"{C.CYAN}╔{top_bar}╗{C.RESET}")
+    hdr = (
+        f"{C.BOLD}{C.CYAN}◈ {ai_name}-TERM{C.RESET} "
+        f"{C.PURPLE}[{env_str}/{arch}]{C.RESET}{bat_str} "
+        f"{C.GRAY}│{C.RESET} {C.YELLOW}{clock_str}{C.RESET}"
+    )
+    print(row_box(hdr, bg=C.BG_CODE))
+    print(f"{C.CYAN}╟{mid_bar}╢{C.RESET}")
+
+    ram_line = (
+        f"{C.GRAY}RAM:{C.RESET} {C.GREEN}{ram_meter}{C.RESET} {used_gb:.1f}/{tot_gb:.1f}G  "
+        f"{C.GRAY}│{C.RESET} {C.GRAY}Tema:{C.RESET} {C.PURPLE}{theme_name}{C.RESET}"
+    )
+    print(row_box(ram_line))
+
+    short_eng = engine_label if len(engine_label) <= inner - 18 else engine_label[: inner - 21] + "..."
+    brain_line = f"{C.GRAY}IA:{C.RESET} {C.GREEN}{short_eng}{C.RESET} ({memory_count} mem)"
+    print(row_box(brain_line))
+
+    safe_badge = f"{C.GREEN}Seguro{C.RESET}" if safe_mode else f"{C.ORANGE}Auto{C.RESET}"
+    mode_line = (
+        f"{C.GRAY}Modo:{C.RESET} {C.YELLOW}{shell_mode.upper()}{C.RESET} · {safe_badge}  "
+        f"{C.GRAY}│{C.RESET} {C.DIM}Pantalla Aislada Activa{C.RESET}"
+    )
+    print(row_box(mode_line))
+    print(f"{C.CYAN}╟{mid_bar}╢{C.RESET}")
+
+    legend1 = f"{C.CYAN}cmd{C.RESET} Linux directo · {C.PURPLE}?{C.RESET} IA · {C.YELLOW}@{C.RESET} Agente · {C.GREEN}!{C.RESET} Forzar bash"
+    if visible_len(legend1) > inner - 2:
+        legend1 = f"{C.CYAN}cmd{C.RESET} Linux · {C.PURPLE}?{C.RESET} IA · {C.YELLOW}@{C.RESET} Agente · {C.GREEN}/ayuda{C.RESET}"
+    print(row_box(legend1))
+
+    legend2 = f"{C.DIM}/imagen · /video · /buscar · tema · modo · reparar · salir{C.RESET}"
+    if visible_len(legend2) > inner - 2:
+        legend2 = f"{C.DIM}/imagen · /video · tema · salir{C.RESET}"
+    print(row_box(legend2))
+    print(f"{C.CYAN}╚{top_bar}╝{C.RESET}")
 
 
 def format_markdown(text: str) -> str:

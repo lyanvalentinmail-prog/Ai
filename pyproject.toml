@@ -15,6 +15,7 @@ media = ["Pillow>=9.0.0"]
 
 [project.scripts]
 ia = "ia_core.cli:main"
+nexus-term = "ia_core.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["ia_core*"]

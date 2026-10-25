@@ -21,9 +21,12 @@ from .memory import LocalMemory, strip_accents
 from .model_manager import GGUF_CATALOG, ModelManager
 from .search_engine import SearchEngine
 from .termux_bridge import TermuxBridge
+from .terminal_shell import NexusTerminalShell, launch_in_new_session
 from .text_engine import TextEngine
 from .ui import (
+    THEMES,
     C,
+    apply_theme,
     confirm_prompt,
     format_markdown,
     play_frames_in_terminal,
@@ -55,6 +58,7 @@ SLASH_COMMANDS = [
     "/indexar ",
     "/memoria",
     "/modelos",
+    "/tema ",
     "/auto",
     "/voz",
     "/abrir",
@@ -69,6 +73,7 @@ class NexusApplication:
 
     def __init__(self, config: Optional[IAConfig] = None):
         self.config = config or IAConfig.load()
+        apply_theme(self.config.terminal_theme)
         self.memory = LocalMemory(self.config.memory_db_path)
         self.model_manager = ModelManager(self.config)
         self.text_engine = TextEngine(self.config, self.memory, self.model_manager)
@@ -392,8 +397,50 @@ class NexusApplication:
         except Exception:
             return None
 
+    def dispatch_natural_input(self, raw_in: str) -> None:
+        """Enruta entradas en lenguaje natural hacia Imagen, Video, Búsqueda, Agente o Texto."""
+        low = strip_accents(raw_in.lower())
+        if re.match(r"^(?:dibuja|genera una imagen|crea una imagen|haz una imagen|pinta)\b", low):
+            cleaned = re.sub(
+                r"^(?:dibuja|genera una imagen|crea una imagen|haz una imagen|pinta)\s*(?:de|sobre|un|una)?\s*",
+                "",
+                raw_in,
+                flags=re.I,
+            ).strip()
+            self.do_image(cleaned or raw_in)
+        elif re.match(r"^(?:genera un video|crea un video|haz un video|anima)\b", low):
+            cleaned = re.sub(
+                r"^(?:genera un video|crea un video|haz un video|anima)\s*(?:de|sobre)?\s*",
+                "",
+                raw_in,
+                flags=re.I,
+            ).strip()
+            self.do_video(cleaned or raw_in)
+        elif re.match(r"^(?:busca en internet|busca en la web|busca|investiga)\b", low):
+            cleaned = re.sub(
+                r"^(?:busca en internet|busca en la web|busca|investiga)\s*(?:sobre|que es)?\s*",
+                "",
+                raw_in,
+                flags=re.I,
+            ).strip()
+            self.do_search(cleaned or raw_in, mode="todo")
+        elif re.match(r"^(?:modo agente|agente\s*:)", low):
+            cleaned = re.sub(r"^(?:modo agente|agente)\s*[:\-]?\s*", "", raw_in, flags=re.I).strip()
+            self.do_agent(cleaned or raw_in)
+        elif re.match(r"^(?:crea un script|crea una calculadora|crea un programa)\b", low) and any(
+            k in low for k in ("prueb", "ejecut", ".py")
+        ):
+            self.do_agent(raw_in)
+        else:
+            self.do_text(raw_in)
+
+    def launch_terminal_shell(self, isolate_screen: Optional[bool] = None) -> int:
+        """Lanza NEXUS-TERM: la Terminal/Shell propia híbrida (Comandos + IA) en pantalla aislada."""
+        shell = NexusTerminalShell(self, isolate_screen=isolate_screen)
+        return shell.run()
+
     def interactive_repl(self) -> None:
-        """Consola interactiva principal optimizada para Termux."""
+        """Consola de chat simple (sin shell híbrido)."""
         hist_file = self._setup_readline()
         print_banner(
             ai_name=self.config.ai_name,
@@ -419,37 +466,7 @@ class NexusApplication:
                     break
                 continue
 
-            # Enrutamiento inteligente en lenguaje natural si el usuario pide imagen, video, búsqueda o agente
-            low = strip_accents(raw_in.lower())
-            if re.match(r"^(?:dibuja|genera una imagen|crea una imagen|haz una imagen|pinta)\b", low):
-                cleaned = re.sub(
-                    r"^(?:dibuja|genera una imagen|crea una imagen|haz una imagen|pinta)\s*(?:de|sobre|un|una)?\s*",
-                    "",
-                    raw_in,
-                    flags=re.I,
-                ).strip()
-                self.do_image(cleaned or raw_in)
-            elif re.match(r"^(?:genera un video|crea un video|haz un video|anima)\b", low):
-                cleaned = re.sub(
-                    r"^(?:genera un video|crea un video|haz un video|anima)\s*(?:de|sobre)?\s*",
-                    "",
-                    raw_in,
-                    flags=re.I,
-                ).strip()
-                self.do_video(cleaned or raw_in)
-            elif re.match(r"^(?:busca en internet|busca en la web|busca|investiga)\b", low):
-                cleaned = re.sub(
-                    r"^(?:busca en internet|busca en la web|busca|investiga)\s*(?:sobre|que es)?\s*",
-                    "",
-                    raw_in,
-                    flags=re.I,
-                ).strip()
-                self.do_search(cleaned or raw_in, mode="todo")
-            elif re.match(r"^(?:modo agente|agente\s*:)", low):
-                cleaned = re.sub(r"^(?:modo agente|agente)\s*[:\-]?\s*", "", raw_in, flags=re.I).strip()
-                self.do_agent(cleaned or raw_in)
-            else:
-                self.do_text(raw_in)
+            self.dispatch_natural_input(raw_in)
 
         if hist_file:
             try:
@@ -594,6 +611,14 @@ class NexusApplication:
             print(format_markdown("\n".join(lines)))
         elif cmd == "/modelos":
             self.do_models_menu(arg.split() if arg else [])
+        elif cmd == "/tema":
+            if not arg or arg.lower() not in THEMES:
+                print_warning(f"Temas disponibles: {', '.join(THEMES.keys())}. Ejemplo: `/tema matrix`")
+            else:
+                chosen = apply_theme(arg)
+                self.config.terminal_theme = chosen
+                self.config.save()
+                print_success(f"Tema visual cambiado a: {chosen}")
         elif cmd == "/auto":
             self.config.safe_mode = not self.config.safe_mode
             self.config.save()
@@ -622,17 +647,48 @@ class NexusApplication:
 
 
 # ---------------------------------------------------------------------------
-# Parser de Subcomandos CLI Directos
+# Parser de Subcomandos CLI Directos y Lanzador de NEXUS-TERM
 # ---------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ia",
-        description="NEXUS — Inteligencia Artificial Propia 100% Local para Termux y Linux.",
+        description="NEXUS — Terminal Propia e Inteligencia Artificial 100% Local para Termux y Linux.",
     )
-    parser.add_argument("-v", "--version", action="version", version=f"NEXUS IA Propia v{__version__}")
+    parser.add_argument("-v", "--version", action="version", version=f"NEXUS-TERM IA Propia v{__version__}")
+    parser.add_argument(
+        "--tema",
+        choices=list(THEMES.keys()),
+        default=None,
+        help="Tema visual de NEXUS-TERM (cyber, matrix, ambar, oceano)",
+    )
+    parser.add_argument(
+        "--modo-shell",
+        choices=["hibrido", "ia", "shell", "agente"],
+        default=None,
+        help="Modo inicial de NEXUS-TERM",
+    )
+    parser.add_argument(
+        "--sin-aislar",
+        action="store_true",
+        help="No cambiar al Alternate Screen Buffer al abrir NEXUS-TERM",
+    )
+    parser.add_argument(
+        "--nueva-sesion",
+        action="store_true",
+        help="Lanzar NEXUS-TERM en una sesión/ventana separada de tmux o Termux",
+    )
+    parser.add_argument(
+        "--chat-simple",
+        action="store_true",
+        help="Usar el modo chat básico en lugar de la terminal completa NEXUS-TERM",
+    )
 
     sub = parser.add_subparsers(dest="subcommand")
+
+    # 0. Terminal propia dedicada (también es el modo por defecto al ejecutar `ia` sin subcomando)
+    sub.add_parser("terminal", help="Abrir NEXUS-TERM (Terminal/Shell propia completa con IA integrada)")
+    sub.add_parser("shell", help="Alias de 'terminal': abre el entorno propio NEXUS-TERM")
 
     # 1. Texto
     p_txt = sub.add_parser("texto", help="Generar texto, responder preguntas, calcular o resumir")
@@ -704,21 +760,46 @@ def main(argv: Optional[List[str]] = None) -> int:
     app = NexusApplication()
 
     if not args_list:
-        app.interactive_repl()
-        return 0
+        return app.launch_terminal_shell()
 
-    known_subs = {
+    known_subs_and_flags = {
+        "terminal", "shell",
         "texto", "buscar", "imagen", "video", "agente",
         "entrenar", "indexar", "modelos", "voz", "doctor",
         "-h", "--help", "-v", "--version",
+        "--tema", "--modo-shell", "--sin-aislar", "--nueva-sesion", "--chat-simple",
     }
-    # Si el primer argumento no es un subcomando conocido (ej. `./ia "Hola, cuánto es 25*16"`), tratarlo como texto directo
-    if args_list[0] not in known_subs:
+    # Si el primer argumento no es un subcomando o flag conocido (ej. `./ia "Hola, cuánto es 25*16"`), tratarlo como texto directo
+    if not args_list[0].startswith("-") and args_list[0] not in known_subs_and_flags:
         app.do_text(" ".join(args_list))
         return 0
 
     parser = build_parser()
     ns = parser.parse_args(args_list)
+
+    if ns.tema:
+        app.config.terminal_theme = apply_theme(ns.tema)
+        app.config.save()
+
+    if ns.modo_shell:
+        app.config.shell_mode = ns.modo_shell
+        app.config.save()
+
+    if ns.nueva_sesion:
+        from .config import get_repo_root
+
+        exe_file = get_repo_root() / "ia"
+        if launch_in_new_session(exe_file):
+            print_success("NEXUS-TERM abierto en una nueva sesión/ventana independiente.")
+            return 0
+        print_warning("tmux / RunCommandService no detectado; abriendo en pantalla aislada (Alternate Screen Buffer)...")
+
+    if ns.subcommand in (None, "terminal", "shell"):
+        if ns.chat_simple:
+            app.interactive_repl()
+            return 0
+        isolate = False if ns.sin_aislar else None
+        return app.launch_terminal_shell(isolate_screen=isolate)
 
     if ns.subcommand == "texto":
         app.do_text(" ".join(ns.mensaje))
