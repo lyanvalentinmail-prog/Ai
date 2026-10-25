@@ -39,15 +39,26 @@ bash install.sh --with-llama
 
 ---
 
-## 💻 Uso desde la Consola de Termux
+## 💻 Tu Terminal Propia: NEXUS-TERM (Comandos + IA en Entorno Aislado)
 
-Tras instalarlo tendrás el comando global `ia` (o puedes ejecutarlo localmente con `./ia`):
+Al ejecutar `ia` (o `nexus-term`), **no te quedas en el prompt normal de Termux**: se abre **NEXUS-TERM**, una **terminal/shell propia e independiente** con pantalla aislada (*Alternate Screen Buffer* `\033[?1049h`) que preserva intacta tu consola anterior y la restaura automáticamente al salir (`salir` / `exit`).
 
-### 1️⃣ Consola Interactiva Completa (REPL)
 ```bash
-./ia
+ia                        # Entra en NEXUS-TERM (pantalla aislada propia)
+nexus-term                # Alias directo de tu nueva terminal
+ia --tema matrix          # Inicia con estética Matrix (cyber | matrix | ambar | oceano)
+ia --nueva-sesion         # Abre NEXUS-TERM en una ventana/sesión independiente de tmux/Termux
 ```
-Cuenta con autocompletado con tecla `Tab`, historial persistente y detección inteligente en lenguaje natural (puedes escribir normalmente o usar `/ayuda`, `/imagen`, `/video`, `/buscar`, `/agente`, `/entrenar`, `/modelos`, `/auto`, `/voz`, `/doctor`).
+
+### ¿Qué puedes hacer dentro de NEXUS-TERM?
+- **Consola Linux/Termux completa:** ejecuta directamente `cd`, `cd -`, `..`, `ls`, `git status`, `pkg install`, `python3`, `vim`, `nano`, tuberías `|` y redirecciones `>`, con prompt propio de 2 líneas que muestra ruta abreviada, rama Git en tiempo real, tiempo de ejecución y código de salida.
+- **Cerebro IA integrado sin cambiar de entorno:** escribe preguntas, cálculos o instrucciones en lenguaje natural y NEXUS-TERM distingue automáticamente entre comandos del sistema y peticiones a tu IA (¡nunca verás errores inútiles de `command not found` cuando hablas con tu IA!).
+- **Prefijos rápidos de 1 tecla:**
+  - `?pregunta` → Consulta directa al cerebro de Texto/RAG (`?cuánto es sqrt(256)*12`)
+  - `@misión` → Lanza el Agente Autónomo sobre tu carpeta actual (`@crea calc.py y pruébalo`)
+  - `!comando` → Fuerza ejecución directa en `bash`
+- **Doctor automático de errores (`reparar`):** si un comando de consola falla (`exit != 0`), escribe `reparar` y NEXUS analizará el `stderr` capturado para indicarte cómo solucionarlo en Termux/Python.
+- **Personalización persistente:** crea tus propios alias (`alias mi_cmd='...'`), exporta variables (`export K=V`), cambia el tema visual en vivo (`tema matrix`, `tema cyber`, `tema ambar`, `tema oceano`) o cambia el modo del shell (`modo hibrido`, `modo ia`, `modo shell`, `modo agente`).
 
 ---
 
@@ -151,13 +162,15 @@ Tu IA detecta automáticamente cuánta memoria RAM tiene tu teléfono y te recom
 
 ```text
 Ai/
-├── ia                      # Ejecutable CLI principal para Termux y Linux
-├── install.sh              # Instalador automático para Termux ($PREFIX/bin/ia)
+├── ia                      # Ejecutable principal (abre NEXUS-TERM o ejecuta subcomandos)
+├── nexus-term              # Lanzador directo de la Terminal/Shell propia NEXUS-TERM
+├── install.sh              # Instalador automático para Termux ($PREFIX/bin/ia y nexus-term)
 ├── data/
 │   └── corpus_base_es.txt  # Conocimiento base semilla en español
 ├── ia_core/
-│   ├── config.py           # Configuración, rutas y detección de hardware/Termux
-│   ├── ui.py               # Interfaz ANSI TrueColor 24-bit y visor de imagen/video en consola
+│   ├── config.py           # Configuración, rutas, temas y detección de hardware/Termux
+│   ├── ui.py               # Pantalla aislada ANSI, HUD OS, temas y visor 24-bit en consola
+│   ├── terminal_shell.py   # NEXUS-TERM: Shell híbrido propio (Comandos Linux + IA + Doctor)
 │   ├── memory.py           # Memoria vectorial SQLite (BM25 + trigramas coseno) y caché offline
 │   ├── neural_lm.py        # Red Neuronal Multicapa Propia entrenable (SGD + N-grama orden 4)
 │   ├── model_manager.py    # Gestor de llama.cpp, stable-diffusion.cpp y catálogo GGUF
@@ -167,9 +180,9 @@ Ai/
 │   ├── video_engine.py     # Animador multi-escena, sintetizador WAV y encoders MP4/GIF89a/AVI
 │   ├── termux_bridge.py    # Puente con Android Termux:API (TTS, STT, batería, notificaciones)
 │   ├── agent_engine.py     # Agente autónomo ReAct con 14 herramientas y SafetyGuard
-│   └── cli.py              # Enrutador de subcomandos y consola interactiva REPL
+│   └── cli.py              # Enrutador CLI y lanzador de NEXUS-TERM
 └── tests/
-    └── test_all.py         # Suite de pruebas automatizadas de los 5 módulos
+    └── test_all.py         # Suite de pruebas automatizadas (8 suites: IA + NEXUS-TERM)
 ```
 
 Para ejecutar todas las pruebas automatizadas:

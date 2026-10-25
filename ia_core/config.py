@@ -128,6 +128,10 @@ class IAConfig:
     safe_mode: bool = True
     max_agent_steps: int = 8
     speak_responses: bool = False
+    # Terminal / Shell propia (NEXUS-TERM)
+    terminal_theme: str = "cyber"
+    shell_mode: str = "hibrido"
+    use_alt_screen: bool = True
 
     @property
     def home_dir(self) -> Path:
@@ -164,6 +168,10 @@ class IAConfig:
     @property
     def config_file_path(self) -> Path:
         return self.home_dir / "config.json"
+
+    @property
+    def shell_rc_path(self) -> Path:
+        return self.home_dir / "shell_rc.json"
 
     def ensure_dirs(self) -> None:
         """Crea toda la estructura de directorios necesaria."""
